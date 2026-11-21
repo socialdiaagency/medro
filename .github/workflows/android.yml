@@ -1,0 +1,92 @@
+name: Build Android app
+
+# يبني تطبيق أندرويد من نفس ملفات الموقع. شغّله يدويًا: Actions ← Build Android app ← Run workflow
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "اسم الإصدار الظاهر للمستخدم (مثل 1.0.0)"
+        default: "1.0.0"
+      version_code:
+        description: "رقم الإصدار الداخلي (يجب أن يزيد مع كل نسخة ترفعها لـ Google Play). اتركه فارغًا لاستخدام رقم التشغيل"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Inject Supabase config from repository variables
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            sed -i "s|SUPABASE_URL: \"[^\"]*\"|SUPABASE_URL: \"$SUPABASE_URL\"|; s|SUPABASE_ANON_KEY: \"[^\"]*\"|SUPABASE_ANON_KEY: \"$SUPABASE_ANON_KEY\"|" config.js
+            echo "config.js generated from repository variables"
+          fi
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build web assets (www/)
+        env:
+          REQUIRE_CONFIG: "1"
+        run: npm run build:www
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Customize Android project (icon, splash, version)
+        env:
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code != '' && inputs.version_code || github.run_number }}
+        run: node scripts/android-customize.mjs
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build debug APK + release AAB
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug bundleRelease
+
+      - name: Sign release AAB (if keystore secrets are set)
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/medro-debug.apk
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            jarsigner -sigalg SHA256withRSA -digestalg SHA-256 \
+              -keystore "$RUNNER_TEMP/upload.jks" -storepass "$KS_PASS" -keypass "${KEY_PASS:-$KS_PASS}" \
+              -signedjar out/medro-release.aab android/app/build/outputs/bundle/release/app-release.aab "$KEY_ALIAS"
+            jarsigner -verify out/medro-release.aab | head -3
+            rm -f "$RUNNER_TEMP/upload.jks"
+          else
+            echo "::warning::No keystore secrets: AAB is unsigned and cannot be uploaded to Google Play. See README (Android section)."
+            cp android/app/build/outputs/bundle/release/app-release.aab out/medro-release-UNSIGNED.aab
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: medro-android
+          path: out/
+          retention-days: 30
