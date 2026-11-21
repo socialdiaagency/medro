@@ -1,0 +1,9 @@
+# إعدادات Supabase CLI (اختياري — تُستخدم عند النشر بالأمر supabase functions deploy)
+project_id = "medro"
+
+# الدالتان تتحققان من توكن المستخدم داخليًا (auth.getUser) لذلك تُنشران بدون verify_jwt
+[functions.ai]
+verify_jwt = false
+
+[functions.admin]
+verify_jwt = false
