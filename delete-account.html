@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>طلب حذف الحساب — MedRo</title>
+<meta name="robots" content="index,follow">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#F5F7FA;--card:#fff;--ink:#1B242E;--muted:#5C6A78;--line:#E1E7ED;--pink:#E50A56;--cyan:#05B2EA;--danger:#D92D20}
+@media (prefers-color-scheme:dark){:root{--bg:#0C1116;--card:#151C24;--ink:#EDF2F6;--muted:#93A2B0;--line:#26323D}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.9 Cairo,system-ui,sans-serif;padding:24px max(16px,env(safe-area-inset-left)) 48px}
+main{max-width:560px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:28px 26px}
+h1{margin:0 0 6px;font-size:26px}.m{color:var(--muted);font-size:14px}a{color:var(--cyan);font-weight:600}
+label{display:block;font-weight:600;margin:14px 0 4px}input[type=email],input[type=password]{width:100%;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+.chk{display:flex;gap:10px;align-items:flex-start;margin:16px 0;font-size:15px}.chk input{margin-top:8px}
+button.go{width:100%;padding:12px;border:0;border-radius:999px;background:var(--danger);color:#fff;font:inherit;font-weight:800;cursor:pointer}
+button.go:disabled{opacity:.5;cursor:not-allowed}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+button.lg{background:none;border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:6px 16px;font:inherit;font-size:14px;cursor:pointer}
+.msg{margin-top:14px;padding:12px 14px;border-radius:12px;font-size:15px;display:none}.msg.err{display:block;background:rgba(217,45,32,.12);color:var(--danger)}.msg.ok{display:block;background:rgba(18,183,106,.14);color:#0a7d4a}
+ul{padding-inline-start:22px}
+</style>
+</head>
+<body>
+<main>
+<div class="top"><a href="./" class="m">← MedRo</a><button class="lg" id="lg" type="button">English</button></div>
+<h1 id="h">طلب حذف الحساب</h1>
+<p class="m" id="p1">يمكنك حذف حسابك في MedRo نهائيًا من هنا دون الحاجة لفتح التطبيق. سجّل الدخول بحسابك لتأكيد أنك صاحبه.</p>
+<ul id="ul"></ul>
+<div id="off" class="msg err" style="display:none"></div>
+<form id="f" autocomplete="on">
+  <label for="em" id="l1">البريد الإلكتروني</label><input id="em" type="email" required autocomplete="email">
+  <label for="pw" id="l2">كلمة المرور</label><input id="pw" type="password" required autocomplete="current-password">
+  <label class="chk"><input id="ck" type="checkbox"><span id="l3"></span></label>
+  <button class="go" id="go" type="submit" disabled></button>
+  <div id="m" class="msg" role="status"></div>
+</form>
+<p class="m" id="p2" style="margin-top:20px"></p>
+<p class="m"><a href="privacy.html" id="pl">سياسة الخصوصية</a></p>
+</main>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+(function(){
+  var T={ar:{t:'طلب حذف الحساب',p1:'يمكنك حذف حسابك في MedRo نهائيًا من هنا دون الحاجة لفتح التطبيق. سجّل الدخول بحسابك لتأكيد أنك صاحبه.',
+    ul:['يُحذف حسابك ومنشوراتك وتعليقاتك وصورك وسجلك الطبي وكل بياناتك المرتبطة به.','لا يمكن التراجع عن الحذف أو استرجاع الحساب.','قد تبقى نسخ احتياطية لدى مزوّد الاستضافة لفترة محدودة قبل أن تُمحى.'],
+    l1:'البريد الإلكتروني',l2:'كلمة المرور',l3:'أفهم أن حذف حسابي نهائي ولا يمكن التراجع عنه.',go:'حذف حسابي نهائيًا',busy:'جارٍ الحذف…',
+    off:'هذه الصفحة غير مفعّلة بعد (لم تُضبط بيانات الخادم).',bad:'بريد أو كلمة مرور غير صحيحة، أو الحساب لم يُؤكَّد بعد.',
+    admin:'هذا حساب أدمن ولا يمكن حذفه من هنا. اطلب من أدمن آخر حذفه.',fail:'تعذّر حذف الحساب. حاول مرة أخرى لاحقًا.',
+    ok:'تم حذف حسابك وبياناتك نهائيًا.',contact:'لا تستطيع تسجيل الدخول؟ راسلنا على: ',pl:'سياسة الخصوصية',lg:'English'},
+  en:{t:'Account deletion request',p1:'You can permanently delete your MedRo account here without opening the app. Sign in to confirm you own it.',
+    ul:['Your account, posts, comments, photos, medical record and all linked data are deleted.','Deletion cannot be undone and the account cannot be recovered.','Backups may remain with the hosting provider for a limited period before being erased.'],
+    l1:'Email',l2:'Password',l3:'I understand that deleting my account is permanent and cannot be undone.',go:'Delete my account permanently',busy:'Deleting…',
+    off:'This page is not enabled yet (server settings are not configured).',bad:'Wrong email or password, or the account is not confirmed yet.',
+    admin:'This is an admin account and cannot be deleted here. Ask another admin to delete it.',fail:'Could not delete the account. Please try again later.',
+    ok:'Your account and data were permanently deleted.',contact:"Can't sign in? Email us at: ",pl:'Privacy policy',lg:'عربي'}};
+  var c=window.MEDRO_CONFIG||{},h=document.documentElement,L=(navigator.language||'ar').slice(0,2)==='ar'?'ar':'en';
+  try{var q=new URLSearchParams(location.search).get('lang');if(q==='ar'||q==='en')L=q}catch(e){}
+  var $=function(i){return document.getElementById(i)};
+  function paint(){var x=T[L];h.lang=L;h.dir=L==='ar'?'rtl':'ltr';document.title=x.t+' — MedRo';
+    $('h').textContent=x.t;$('p1').textContent=x.p1;$('ul').innerHTML=x.ul.map(function(s){return '<li>'+s+'</li>'}).join('');
+    $('l1').textContent=x.l1;$('l2').textContent=x.l2;$('l3').textContent=x.l3;$('go').textContent=x.go;$('pl').textContent=x.pl;$('lg').textContent=x.lg;
+    $('p2').textContent=c.SUPPORT_EMAIL?x.contact:'';if(c.SUPPORT_EMAIL){var a=document.createElement('a');a.href='mailto:'+c.SUPPORT_EMAIL;a.textContent=c.SUPPORT_EMAIL;$('p2').appendChild(a)}
+    if(!sb){$('off').style.display='block';$('off').textContent=x.off}}
+  var sb=null;
+  try{if(c.SUPABASE_URL&&c.SUPABASE_ANON_KEY&&window.supabase)sb=window.supabase.createClient(c.SUPABASE_URL,c.SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}})}catch(e){}
+  paint();$('lg').onclick=function(){L=L==='ar'?'en':'ar';paint()};
+  $('ck').onchange=function(){$('go').disabled=!$('ck').checked||!sb};
+  function msg(k,cls){var m=$('m');m.className='msg '+cls;m.textContent=T[L][k]}
+  $('f').onsubmit=async function(e){
+    e.preventDefault();if(!sb||!$('ck').checked)return;
+    var go=$('go');go.disabled=true;go.textContent=T[L].busy;$('m').className='msg';
+    try{
+      var r=await sb.auth.signInWithPassword({email:$('em').value.trim(),password:$('pw').value});
+      if(r.error||!r.data||!r.data.session){msg('bad','err');return}
+      var d=await sb.functions.invoke('admin',{body:{action:'delete_self'}});
+      var code='';
+      if(d.error){try{var j=await d.error.context.json();code=j&&j.error}catch(_){}
+        msg(code==='last_admin'?'admin':'fail','err');return}
+      if(d.data&&d.data.error){msg(d.data.error==='last_admin'?'admin':'fail','err');return}
+      try{await sb.auth.signOut()}catch(_){}
+      $('f').reset();msg('ok','ok');$('ck').checked=false;go.style.display='none';
+    }catch(err){msg('fail','err')}
+    finally{if(go.style.display!=='none'){go.textContent=T[L].go;go.disabled=!$('ck').checked||!sb}}
+  };
+})();
+</script>
+</body>
+</html>
